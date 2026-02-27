@@ -31,6 +31,31 @@ const sessionRequestSchema = new mongoose.Schema(
       maxlength: 600,
       default: '',
     },
+    paymentMode: {
+      type: String,
+      enum: ['credits', 'money'],
+      required: true,
+    },
+    moneyPaymentStatus: {
+      type: String,
+      enum: ['pending', 'authorized', 'refunded', 'failed'],
+      default: 'pending',
+    },
+    moneyPaymentOrderId: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    moneyPaymentId: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    moneyPaymentSignature: {
+      type: String,
+      trim: true,
+      maxlength: 240,
+    },
     status: {
       type: String,
       enum: ['pending', 'accepted', 'rejected', 'reschedule_requested', 'cancelled'],

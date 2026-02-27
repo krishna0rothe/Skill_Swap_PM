@@ -3,6 +3,12 @@ import { useState } from 'react'
 function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
   const [requestDrafts, setRequestDrafts] = useState({})
 
+  const getDefaultPaymentMode = (offer) => {
+    if (offer.acceptsCredits && !offer.acceptsMoney) return 'credits'
+    if (!offer.acceptsCredits && offer.acceptsMoney) return 'money'
+    return 'credits'
+  }
+
   const updateDraft = (offerId, field, value) => {
     setRequestDrafts((prev) => ({
       ...prev,
@@ -13,9 +19,14 @@ function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
     }))
   }
 
-  const handleSubmit = (offerId) => {
-    const draft = requestDrafts[offerId] || { proposedStartAt: '', message: '' }
-    onRequestSubmit(offerId, draft)
+  const handleSubmit = (offer) => {
+    const draft = {
+      proposedStartAt: '',
+      message: '',
+      paymentMode: getDefaultPaymentMode(offer),
+      ...(requestDrafts[offer._id] || {}),
+    }
+    onRequestSubmit(offer._id, draft)
   }
 
   return (
@@ -28,7 +39,8 @@ function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
           <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">No offers available right now.</p>
         ) : (
           offers.map((offer) => {
-            const draft = requestDrafts[offer._id] || { proposedStartAt: '', message: '' }
+            const defaultPaymentMode = getDefaultPaymentMode(offer)
+            const draft = requestDrafts[offer._id] || { proposedStartAt: '', message: '', paymentMode: defaultPaymentMode }
             const isLoading = Boolean(requestLoadingByOffer[offer._id])
 
             return (
@@ -45,7 +57,7 @@ function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {offer.acceptsCredits && (
                     <span className="rounded-full bg-violet-50 px-2 py-1 font-medium text-violet-700">
-                      {offer.creditPrice} credits
+                      10 credits
                     </span>
                   )}
                   {offer.acceptsMoney && (
@@ -70,8 +82,21 @@ function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
                 />
 
+                {offer.acceptsCredits && offer.acceptsMoney ? (
+                  <select
+                    value={draft.paymentMode || defaultPaymentMode}
+                    onChange={(event) => updateDraft(offer._id, 'paymentMode', event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                  >
+                    <option value="credits">Pay with 10 credits</option>
+                    <option value="money">
+                      Pay with {offer.currency} {offer.moneyPrice}
+                    </option>
+                  </select>
+                ) : null}
+
                 <button
-                  onClick={() => handleSubmit(offer._id)}
+                  onClick={() => handleSubmit(offer)}
                   disabled={isLoading}
                   className="mt-3 w-full rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-70"
                 >

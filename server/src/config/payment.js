@@ -1,0 +1,7 @@
+const FIXED_CREDIT_PRICE = 10
+const MIN_COMPLETION_RATIO = 0.75
+
+module.exports = {
+  FIXED_CREDIT_PRICE,
+  MIN_COMPLETION_RATIO,
+}

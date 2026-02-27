@@ -24,6 +24,13 @@ function SessionsSection({
   sessionActionLoading,
 }) {
   const listToRender = mode === 'teach' ? incomingRequests : outgoingRequests
+  const getPaymentStatusLabel = (session) => {
+    if (session.paymentMode === 'money' && session.paymentStatus === 'paid') {
+      return 'paid'
+    }
+
+    return session.paymentStatus
+  }
 
   return (
     <div className="space-y-6">
@@ -106,12 +113,9 @@ function SessionsSection({
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                 />
                 <input
-                  name="creditPrice"
-                  type="number"
-                  min={0}
-                  value={offerForm.creditPrice}
-                  onChange={onOfferInputChange}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value="10"
+                  disabled
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm"
                 />
                 <input
                   name="moneyPrice"
@@ -201,6 +205,7 @@ function SessionsSection({
                   <p className="text-sm font-semibold text-slate-800">{request.sessionOfferId?.title || 'Session Request'}</p>
                   <p className="mt-1 text-xs text-slate-600">Status: {request.status}</p>
                   <p className="mt-1 text-xs text-slate-600">Requested: {new Date(request.proposedStartAt).toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-slate-600">Payment selected: {request.paymentMode || 'credits'}</p>
 
                   <textarea
                     value={draft.message}
@@ -275,7 +280,7 @@ function SessionsSection({
                     {new Date(session.scheduledStartAt).toLocaleString()} • {session.durationMinutes} mins
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
-                    {session.skillId?.name || 'Skill'} • {session.paymentMode} • payment: {session.paymentStatus}
+                    {session.skillId?.name || 'Skill'} • {session.paymentMode} • payment: {getPaymentStatusLabel(session)}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">status: {session.status}</p>
 

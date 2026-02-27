@@ -1,5 +1,6 @@
 const express = require('express')
 const {
+  createRazorpayOrder,
   create,
   incoming,
   outgoing,
@@ -13,6 +14,7 @@ const router = express.Router()
 
 router.use(protect)
 
+router.post('/razorpay-order', createRazorpayOrder)
 router.post('/', create)
 router.get('/incoming', incoming)
 router.get('/outgoing', outgoing)

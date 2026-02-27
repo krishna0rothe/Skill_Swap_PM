@@ -1,4 +1,5 @@
 const {
+  createMoneyRequestRazorpayOrder,
   createSessionRequest,
   listIncomingRequests,
   listOutgoingRequests,
@@ -6,6 +7,26 @@ const {
   rejectSessionRequest,
   rescheduleSessionRequest,
 } = require('../services/sessionRequest.service')
+
+const getErrorMessage = (error, fallback) => {
+  return (
+    error?.message ||
+    error?.error?.description ||
+    error?.description ||
+    error?.reason ||
+    fallback
+  )
+}
+
+const createRazorpayOrder = async (req, res) => {
+  try {
+    const result = await createMoneyRequestRazorpayOrder(req.user.userId, req.body)
+    return res.status(200).json(result)
+  } catch (error) {
+    const message = getErrorMessage(error, 'Failed to create Razorpay order')
+    return res.status(400).json({ message })
+  }
+}
 
 const create = async (req, res) => {
   try {
@@ -62,6 +83,7 @@ const askReschedule = async (req, res) => {
 }
 
 module.exports = {
+  createRazorpayOrder,
   create,
   incoming,
   outgoing,

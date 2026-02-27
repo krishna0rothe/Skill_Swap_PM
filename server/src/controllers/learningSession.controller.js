@@ -1,6 +1,9 @@
 const {
   listMyLearningSessions,
   getSessionJoinInfo,
+  createSessionRazorpayOrder,
+  verifySessionRazorpayPayment,
+  trackSessionLifecycleEvent,
   completeLearningSession,
   cancelLearningSession,
 } = require('../services/learningSession.service')
@@ -24,10 +27,38 @@ const joinInfo = async (req, res) => {
   }
 }
 
+const createRazorpayOrder = async (req, res) => {
+  try {
+    const result = await createSessionRazorpayOrder(req.params.sessionId, req.user.userId)
+    return res.status(200).json(result)
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
+const verifyRazorpayPayment = async (req, res) => {
+  try {
+    const result = await verifySessionRazorpayPayment(req.params.sessionId, req.user.userId, req.body)
+    return res.status(200).json(result)
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
 const complete = async (req, res) => {
   try {
-    const session = await completeLearningSession(req.params.sessionId, req.user.userId, req.body)
-    return res.status(200).json({ session })
+    const result = await completeLearningSession(req.params.sessionId, req.user.userId, req.body)
+    return res.status(200).json(result)
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
+const lifecycleEvent = async (req, res) => {
+  try {
+    const { sessionId, eventName } = req.params
+    const result = await trackSessionLifecycleEvent(sessionId, req.user.userId, eventName, req.body?.eventAt)
+    return res.status(200).json(result)
   } catch (error) {
     return res.status(400).json({ message: error.message })
   }
@@ -45,6 +76,9 @@ const cancel = async (req, res) => {
 module.exports = {
   mySessions,
   joinInfo,
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  lifecycleEvent,
   complete,
   cancel,
 }

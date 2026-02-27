@@ -84,6 +84,13 @@ const refundLockedCredits = async ({ learnerUserId, amount }) => {
   return learnerWallet
 }
 
+const creditRealMoneyToMentor = async ({ mentorUserId, amount }) => {
+  const mentorWallet = await ensureWalletForUser(mentorUserId)
+  mentorWallet.realMoneyBalance += amount
+  await mentorWallet.save()
+  return mentorWallet
+}
+
 module.exports = {
   STARTING_CREDIT_BALANCE,
   createWalletForUser,
@@ -92,4 +99,5 @@ module.exports = {
   lockCredits,
   settleLockedCreditsToMentor,
   refundLockedCredits,
+  creditRealMoneyToMentor,
 }

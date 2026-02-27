@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const SessionOffer = require('../models/SessionOffer')
 const { validateSkillExists } = require('./skill.service')
+const { FIXED_CREDIT_PRICE } = require('../config/payment')
 
 const assertValidObjectId = (value, fieldName) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -40,7 +41,7 @@ const createSessionOffer = async (mentorUserId, payload) => {
     description,
     durationMinutes,
     acceptsCredits,
-    creditPrice,
+    creditPrice: acceptsCredits ? FIXED_CREDIT_PRICE : 0,
     acceptsMoney,
     moneyPrice,
     currency,
@@ -125,6 +126,8 @@ const updateMySessionOffer = async (mentorUserId, offerId, payload) => {
   if (!offer.acceptsCredits && !offer.acceptsMoney) {
     throw new Error('Offer must accept at least one payment method')
   }
+
+  offer.creditPrice = offer.acceptsCredits ? FIXED_CREDIT_PRICE : 0
 
   await offer.save()
 

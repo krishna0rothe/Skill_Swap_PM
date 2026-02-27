@@ -46,6 +46,12 @@ const learningSessionSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    actualStartedAt: {
+      type: Date,
+    },
+    actualEndedAt: {
+      type: Date,
+    },
     durationMinutes: {
       type: Number,
       required: true,
@@ -81,7 +87,7 @@ const learningSessionSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'authorized', 'captured', 'refunded', 'failed'],
+      enum: ['pending', 'authorized', 'captured', 'paid', 'refunded', 'failed'],
       default: 'pending',
       index: true,
     },
@@ -129,6 +135,19 @@ const learningSessionSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 800,
+    },
+    completionRatioRequired: {
+      type: Number,
+      default: 0.75,
+      min: 0,
+      max: 1,
+    },
+    completionEvaluatedAt: {
+      type: Date,
+    },
+    isDurationQualified: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

@@ -10,6 +10,23 @@ import PlaceholderSection from '../components/dashboard/PlaceholderSection'
 import SessionsSection from '../components/dashboard/SessionsSection'
 import WalletSection from '../components/dashboard/WalletSection'
 
+const FRONTEND_RAZORPAY_KEY_ID = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').trim()
+
+const ensureRazorpayCheckoutLoaded = () => {
+  if (window.Razorpay) {
+    return Promise.resolve(true)
+  }
+
+  return new Promise((resolve) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.async = true
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
+
 function DashboardPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
@@ -237,7 +254,7 @@ function DashboardPage() {
         description: offerForm.description.trim(),
         availabilityNote: offerForm.availabilityNote.trim(),
         durationMinutes: Number(offerForm.durationMinutes),
-        creditPrice: Number(offerForm.creditPrice),
+        creditPrice: 10,
         moneyPrice: Number(offerForm.moneyPrice),
       }
 
@@ -286,6 +303,67 @@ function DashboardPage() {
 
     try {
       setRequestLoadingByOffer((prev) => ({ ...prev, [offerId]: true }))
+
+      let moneyPaymentPayload = {}
+
+      if (draft.paymentMode === 'money') {
+        const scriptLoaded = await ensureRazorpayCheckoutLoaded()
+        if (!scriptLoaded) {
+          throw new Error('Unable to load Razorpay checkout')
+        }
+
+        const orderResponse = await authFetch(`${API_BASE_URL}/session-requests/razorpay-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionOfferId: offerId }),
+        })
+
+        const orderData = await orderResponse.json()
+
+        if (!orderResponse.ok) {
+          throw new Error(orderData.message || 'Failed to initialize payment')
+        }
+
+        const checkoutKey = String(orderData?.keyId || FRONTEND_RAZORPAY_KEY_ID || '').trim()
+
+        if (!checkoutKey || checkoutKey === 'undefined' || !/^rzp_(test|live)_/.test(checkoutKey)) {
+          throw new Error('Razorpay key is not configured on server')
+        }
+
+        if (!orderData?.orderId) {
+          throw new Error('Razorpay order could not be created')
+        }
+
+        const paymentResult = await new Promise((resolve, reject) => {
+          const paymentWindow = new window.Razorpay({
+            key: checkoutKey,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: orderData.name,
+            description: orderData.description,
+            order_id: orderData.orderId,
+            redirect: false,
+            prefill: {
+              name: user?.username || '',
+              email: user?.email || '',
+              contact: user?.mobile || '',
+            },
+            notes: orderData.notes || {},
+            handler: (result) => resolve(result),
+            modal: {
+              ondismiss: () => reject(new Error('Payment cancelled by user')),
+            },
+            theme: {
+              color: '#4f46e5',
+            },
+          })
+
+          paymentWindow.open()
+        })
+
+        moneyPaymentPayload = paymentResult
+      }
+
       const apiResponse = await authFetch(`${API_BASE_URL}/session-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,6 +371,8 @@ function DashboardPage() {
           sessionOfferId: offerId,
           proposedStartAt: draft.proposedStartAt,
           message: draft.message,
+          paymentMode: draft.paymentMode,
+          ...moneyPaymentPayload,
         }),
       })
 
@@ -400,7 +480,7 @@ function DashboardPage() {
         throw new Error(response.message || `Failed to ${action} session`)
       }
 
-      window.alert(`Session ${action}d successfully`)
+      window.alert(response.message || `Session ${action}d successfully`)
       await refreshSessionData()
     } catch (error) {
       window.alert(error.message)

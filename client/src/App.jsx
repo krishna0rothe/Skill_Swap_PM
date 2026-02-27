@@ -1,21 +1,26 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import ProtectedRoute from './components/routing/ProtectedRoute'
+import DashboardPage from './pages/DashboardPage'
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import OnboardingPage from './pages/OnboardingPage'
+import RegisterPage from './pages/RegisterPage'
 
-function LandingPage() {
-  return (
-    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold">SkillSwap</h1>
-        <p className="text-slate-300">Build. Teach. Learn. Grow.</p>
-      </div>
-    </main>
-  )
-}
-
-export default function App() {
+function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
+
+export default App

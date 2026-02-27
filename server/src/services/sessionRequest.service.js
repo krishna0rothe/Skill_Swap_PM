@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const SessionOffer = require('../models/SessionOffer')
 const SessionRequest = require('../models/SessionRequest')
 const LearningSession = require('../models/LearningSession')
+const { lockCredits } = require('./wallet.service')
 
 const assertValidObjectId = (value, fieldName) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -93,6 +94,10 @@ const acceptSessionRequest = async (mentorUserId, requestId, payload) => {
     throw new Error('This offer does not accept money')
   }
 
+  if (paymentMode === 'credits') {
+    await lockCredits(request.learnerUserId, offer.creditPrice)
+  }
+
   request.status = 'accepted'
   request.mentorResponseMessage = payload.message || request.mentorResponseMessage
   request.respondedAt = new Date()
@@ -113,8 +118,8 @@ const acceptSessionRequest = async (mentorUserId, requestId, payload) => {
     creditAmount: paymentMode === 'credits' ? offer.creditPrice : 0,
     moneyAmount: paymentMode === 'money' ? offer.moneyPrice : 0,
     currency: offer.currency,
-    paymentStatus: 'pending',
-    paymentGateway: 'internal',
+    paymentStatus: paymentMode === 'credits' ? 'authorized' : 'pending',
+    paymentGateway: paymentMode === 'money' ? 'razorpay' : 'internal',
     videoProvider: 'none',
   })
 

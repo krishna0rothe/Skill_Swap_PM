@@ -87,13 +87,48 @@ const learningSessionSchema = new mongoose.Schema(
     },
     paymentGateway: {
       type: String,
-      enum: ['internal', 'none'],
+      enum: ['razorpay', 'internal', 'none'],
       default: 'internal',
+    },
+    paymentReferenceId: {
+      type: String,
+      trim: true,
+      maxlength: 120,
     },
     videoProvider: {
       type: String,
-      enum: ['none'],
+      enum: ['videosdk', 'none'],
       default: 'none',
+    },
+    videoMeetingId: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    videoJoinUrl: {
+      type: String,
+      trim: true,
+      maxlength: 400,
+    },
+    mentorRating: {
+      type: Number,
+      min: 0,
+      max: 5,
+    },
+    learnerRating: {
+      type: Number,
+      min: 0,
+      max: 5,
+    },
+    learnerReview: {
+      type: String,
+      trim: true,
+      maxlength: 800,
+    },
+    mentorReview: {
+      type: String,
+      trim: true,
+      maxlength: 800,
     },
   },
   { timestamps: true }

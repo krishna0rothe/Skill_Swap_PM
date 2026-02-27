@@ -1,4 +1,9 @@
-const { listMyLearningSessions, getSessionJoinInfo } = require('../services/learningSession.service')
+const {
+  listMyLearningSessions,
+  getSessionJoinInfo,
+  completeLearningSession,
+  cancelLearningSession,
+} = require('../services/learningSession.service')
 
 const mySessions = async (req, res) => {
   try {
@@ -19,7 +24,27 @@ const joinInfo = async (req, res) => {
   }
 }
 
+const complete = async (req, res) => {
+  try {
+    const session = await completeLearningSession(req.params.sessionId, req.user.userId, req.body)
+    return res.status(200).json({ session })
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
+const cancel = async (req, res) => {
+  try {
+    const session = await cancelLearningSession(req.params.sessionId, req.user.userId, req.body)
+    return res.status(200).json({ session })
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
 module.exports = {
   mySessions,
   joinInfo,
+  complete,
+  cancel,
 }

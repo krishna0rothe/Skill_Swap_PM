@@ -17,6 +17,11 @@ function SessionsSection({
   onRejectRequest,
   onRescheduleRequest,
   actionLoading,
+  learningSessions,
+  onJoinSession,
+  onCompleteSession,
+  onCancelSession,
+  sessionActionLoading,
 }) {
   const listToRender = mode === 'teach' ? incomingRequests : outgoingRequests
 
@@ -245,6 +250,60 @@ function SessionsSection({
                         </button>
                       </div>
                     </>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_20px_50px_-38px_rgba(79,70,229,0.45)]">
+        <h3 className="text-lg font-bold text-slate-900">Learning Sessions</h3>
+        <div className="mt-4 space-y-3">
+          {learningSessions.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">No learning sessions yet.</p>
+          ) : (
+            learningSessions.map((session) => {
+              const loadingState = sessionActionLoading[session._id] || ''
+              const canUpdate = ['scheduled', 'rescheduled'].includes(session.status)
+
+              return (
+                <div key={session._id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-800">{session.title}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {new Date(session.scheduledStartAt).toLocaleString()} • {session.durationMinutes} mins
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {session.skillId?.name || 'Skill'} • {session.paymentMode} • payment: {session.paymentStatus}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">status: {session.status}</p>
+
+                  {canUpdate && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => onJoinSession(session)}
+                        className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"
+                      >
+                        Join Call
+                      </button>
+                      {mode === 'teach' && (
+                        <button
+                          onClick={() => onCompleteSession(session)}
+                          disabled={loadingState === 'complete'}
+                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-70"
+                        >
+                          {loadingState === 'complete' ? 'Completing...' : 'Mark Complete'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onCancelSession(session)}
+                        disabled={loadingState === 'cancel'}
+                        className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-70"
+                      >
+                        {loadingState === 'cancel' ? 'Cancelling...' : 'Cancel'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )

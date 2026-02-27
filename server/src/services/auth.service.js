@@ -1,5 +1,6 @@
 const User = require('../models/User')
 const generateToken = require('../utils/generateToken')
+const { ensureWalletForUser } = require('./wallet.service')
 
 const sanitizeUser = (userDoc) => ({
   id: userDoc._id,
@@ -21,6 +22,7 @@ const registerUser = async ({ username, email, password, mobile }) => {
   }
 
   const user = await User.create({ username, email, password, mobile })
+  await ensureWalletForUser(user._id)
   const token = generateToken(user._id)
 
   return { user: sanitizeUser(user), token }
@@ -40,6 +42,7 @@ const loginUser = async ({ email, password }) => {
   }
 
   const token = generateToken(user._id)
+  await ensureWalletForUser(user._id)
   return { user: sanitizeUser(user), token }
 }
 

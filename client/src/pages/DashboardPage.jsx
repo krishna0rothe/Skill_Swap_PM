@@ -8,6 +8,7 @@ import DiscoverSection from '../components/dashboard/DiscoverSection'
 import HomeSection from '../components/dashboard/HomeSection'
 import PlaceholderSection from '../components/dashboard/PlaceholderSection'
 import SessionsSection from '../components/dashboard/SessionsSection'
+import WalletSection from '../components/dashboard/WalletSection'
 
 function DashboardPage() {
   const navigate = useNavigate()
@@ -22,6 +23,7 @@ function DashboardPage() {
   const [incomingRequests, setIncomingRequests] = useState([])
   const [outgoingRequests, setOutgoingRequests] = useState([])
   const [learningSessions, setLearningSessions] = useState([])
+  const [wallet, setWallet] = useState(null)
 
   const [savingOffer, setSavingOffer] = useState(false)
   const [sessionMessage, setSessionMessage] = useState('')
@@ -29,6 +31,7 @@ function DashboardPage() {
   const [requestLoadingByOffer, setRequestLoadingByOffer] = useState({})
   const [responseDrafts, setResponseDrafts] = useState({})
   const [actionLoading, setActionLoading] = useState({})
+  const [sessionActionLoading, setSessionActionLoading] = useState({})
 
   const [offerForm, setOfferForm] = useState({
     skillId: '',
@@ -121,6 +124,17 @@ function DashboardPage() {
     setLearningSessions(response.sessions || [])
   }
 
+  const fetchWallet = async () => {
+    const apiResponse = await authFetch(`${API_BASE_URL}/wallet/me`)
+    const response = await apiResponse.json()
+
+    if (!apiResponse.ok) {
+      throw new Error(response.message || 'Failed to load wallet')
+    }
+
+    setWallet(response.wallet || null)
+  }
+
   const refreshSessionData = async () => {
     await Promise.all([
       fetchSkills(),
@@ -129,6 +143,7 @@ function DashboardPage() {
       fetchIncomingRequests(),
       fetchOutgoingRequests(),
       fetchLearningSessions(),
+      fetchWallet(),
     ])
   }
 
@@ -369,6 +384,40 @@ function DashboardPage() {
       onJoin: (selectedSession) => navigate(`/call/${selectedSession._id}`),
     }))
 
+  const runSessionAction = async (sessionId, action, payload = {}) => {
+    try {
+      setSessionActionLoading((prev) => ({ ...prev, [sessionId]: action }))
+
+      const apiResponse = await authFetch(`${API_BASE_URL}/learning-sessions/${sessionId}/${action}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const response = await apiResponse.json()
+
+      if (!apiResponse.ok) {
+        throw new Error(response.message || `Failed to ${action} session`)
+      }
+
+      window.alert(`Session ${action}d successfully`)
+      await refreshSessionData()
+    } catch (error) {
+      window.alert(error.message)
+    } finally {
+      setSessionActionLoading((prev) => ({ ...prev, [sessionId]: '' }))
+    }
+  }
+
+  const handleCompleteSession = async (session) => {
+    await runSessionAction(session._id, 'complete')
+  }
+
+  const handleCancelSession = async (session) => {
+    const reason = window.prompt('Reason for cancellation (optional)') || ''
+    await runSessionAction(session._id, 'cancel', { reason })
+  }
+
   const renderSection = () => {
     if (activeSection === 'home') {
       return <HomeSection upcomingSessions={upcomingSessions} pendingRequests={pendingRequests} mode={mode} />
@@ -395,6 +444,11 @@ function DashboardPage() {
           onRejectRequest={handleRejectRequest}
           onRescheduleRequest={handleRescheduleRequest}
           actionLoading={actionLoading}
+          learningSessions={learningSessions}
+          onJoinSession={(session) => navigate(`/call/${session._id}`)}
+          onCompleteSession={handleCompleteSession}
+          onCancelSession={handleCancelSession}
+          sessionActionLoading={sessionActionLoading}
         />
       )
     }
@@ -407,6 +461,10 @@ function DashboardPage() {
           requestLoadingByOffer={requestLoadingByOffer}
         />
       )
+    }
+
+    if (activeSection === 'wallet') {
+      return <WalletSection wallet={wallet} />
     }
 
     return <PlaceholderSection title={activeSection} />

@@ -9,6 +9,7 @@ const profileRoutes = require('./routes/profile.routes')
 const sessionOfferRoutes = require('./routes/sessionOffer.routes')
 const sessionRequestRoutes = require('./routes/sessionRequest.routes')
 const learningSessionRoutes = require('./routes/learningSession.routes')
+const walletRoutes = require('./routes/wallet.routes')
 
 const app = express()
 
@@ -27,5 +28,6 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/session-offers', sessionOfferRoutes)
 app.use('/api/session-requests', sessionRequestRoutes)
 app.use('/api/learning-sessions', learningSessionRoutes)
+app.use('/api/wallet', walletRoutes)
 
 module.exports = app

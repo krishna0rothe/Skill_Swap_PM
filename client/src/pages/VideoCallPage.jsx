@@ -130,7 +130,7 @@ function MeetingControls({ onLeave }) {
   )
 }
 
-function MeetingRoom({ sessionId, onLeave }) {
+function MeetingRoom({ sessionId, role, onLeave }) {
   const [joined, setJoined] = useState(false)
   const [audioUnlockNeeded, setAudioUnlockNeeded] = useState(false)
   const [micPermissionError, setMicPermissionError] = useState('')
@@ -154,6 +154,26 @@ function MeetingRoom({ sessionId, onLeave }) {
     },
     [sessionId]
   )
+
+  const tryAutoCompleteSession = useCallback(async () => {
+    if (role !== 'mentor') {
+      return
+    }
+
+    try {
+      const token = getToken()
+      await fetch(`${API_BASE_URL}/learning-sessions/${sessionId}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      })
+    } catch (_error) {
+      // best-effort auto-complete should not block leave flow
+    }
+  }, [role, sessionId])
 
   const handleLeaveTracking = useCallback(async () => {
     if (lifecycleEndSentRef.current) {
@@ -203,6 +223,7 @@ function MeetingRoom({ sessionId, onLeave }) {
     },
     onMeetingLeft: async () => {
       await handleLeaveTracking()
+      await tryAutoCompleteSession()
       onLeave()
     },
   })
@@ -413,7 +434,7 @@ function VideoCallPage() {
       }}
       token={joinData.token}
     >
-      <MeetingRoom sessionId={sessionId} onLeave={() => navigate('/dashboard', { replace: true })} />
+      <MeetingRoom sessionId={sessionId} role={joinData.role} onLeave={() => navigate('/dashboard', { replace: true })} />
     </MeetingProvider>
   )
 }

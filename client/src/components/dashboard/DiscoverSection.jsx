@@ -53,6 +53,13 @@ function DiscoverSection({ offers, onRequestSubmit, requestLoadingByOffer }) {
                 <p className="mt-2 text-xs text-slate-600">
                   {offer.skillId?.name || 'Skill'} • {offer.durationMinutes} mins
                 </p>
+                {offer.ratingsCount > 0 ? (
+                  <p className="mt-1 text-xs font-medium text-amber-600">
+                    ★ {Number(offer.averageRating || 0).toFixed(1)} ({offer.ratingsCount})
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-400">No ratings yet</p>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {offer.acceptsCredits && (

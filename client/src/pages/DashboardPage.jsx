@@ -40,6 +40,7 @@ function DashboardPage() {
   const [incomingRequests, setIncomingRequests] = useState([])
   const [outgoingRequests, setOutgoingRequests] = useState([])
   const [learningSessions, setLearningSessions] = useState([])
+  const [completedSessions, setCompletedSessions] = useState([])
   const [wallet, setWallet] = useState(null)
 
   const [savingOffer, setSavingOffer] = useState(false)
@@ -141,6 +142,17 @@ function DashboardPage() {
     setLearningSessions(response.sessions || [])
   }
 
+  const fetchCompletedSessions = async () => {
+    const apiResponse = await authFetch(`${API_BASE_URL}/learning-sessions/history`)
+    const response = await apiResponse.json()
+
+    if (!apiResponse.ok) {
+      throw new Error(response.message || 'Failed to load completed session history')
+    }
+
+    setCompletedSessions(response.sessions || [])
+  }
+
   const fetchWallet = async () => {
     const apiResponse = await authFetch(`${API_BASE_URL}/wallet/me`)
     const response = await apiResponse.json()
@@ -160,6 +172,7 @@ function DashboardPage() {
       fetchIncomingRequests(),
       fetchOutgoingRequests(),
       fetchLearningSessions(),
+      fetchCompletedSessions(),
       fetchWallet(),
     ])
   }
@@ -498,6 +511,28 @@ function DashboardPage() {
     await runSessionAction(session._id, 'cancel', { reason })
   }
 
+  const handleSubmitReview = async (session, payload) => {
+    try {
+      const apiResponse = await authFetch(`${API_BASE_URL}/learning-sessions/${session._id}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const response = await apiResponse.json()
+
+      if (!apiResponse.ok) {
+        throw new Error(response.message || 'Failed to submit review')
+      }
+
+      window.alert('Review saved successfully')
+      await refreshSessionData()
+    } catch (error) {
+      window.alert(error.message)
+      throw error
+    }
+  }
+
   const renderSection = () => {
     if (activeSection === 'home') {
       return <HomeSection upcomingSessions={upcomingSessions} pendingRequests={pendingRequests} mode={mode} />
@@ -507,7 +542,6 @@ function DashboardPage() {
       return (
         <SessionsSection
           mode={mode}
-          onModeChange={setMode}
           skills={skills}
           offerForm={offerForm}
           onOfferInputChange={handleOfferInputChange}
@@ -525,9 +559,11 @@ function DashboardPage() {
           onRescheduleRequest={handleRescheduleRequest}
           actionLoading={actionLoading}
           learningSessions={learningSessions}
+          completedSessions={completedSessions}
           onJoinSession={(session) => navigate(`/call/${session._id}`)}
           onCompleteSession={handleCompleteSession}
           onCancelSession={handleCancelSession}
+          onSubmitReview={handleSubmitReview}
           sessionActionLoading={sessionActionLoading}
         />
       )

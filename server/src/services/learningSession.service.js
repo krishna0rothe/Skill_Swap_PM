@@ -1,7 +1,10 @@
+const mongoose = require('mongoose')
 const LearningSession = require('../models/LearningSession')
 const User = require('../models/User')
 const SessionParticipation = require('../models/SessionParticipation')
 const PaymentTransaction = require('../models/PaymentTransaction')
+const SessionOffer = require('../models/SessionOffer')
+const SessionReview = require('../models/SessionReview')
 const {
   settleLockedCreditsToMentor,
   refundLockedCredits,
@@ -13,7 +16,7 @@ const {
   verifyRazorpaySignature,
   getRazorpayPublicKey,
 } = require('./razorpay.service')
-const { MIN_COMPLETION_RATIO } = require('../config/payment')
+const { MIN_COMPLETION_RATIO, BYPASS_COMPLETION_DURATION_CHECK } = require('../config/payment')
 
 const toDate = (value) => {
   const parsed = value ? new Date(value) : new Date()
@@ -64,6 +67,62 @@ const getCompletionStats = async (session) => {
   }
 }
 
+const recalculateOfferRating = async (sessionOfferId) => {
+  const offerId = String(sessionOfferId || '').trim()
+  if (!offerId) {
+    return
+  }
+
+  const [aggregate] = await SessionReview.aggregate([
+    { $match: { sessionOfferId: new mongoose.Types.ObjectId(offerId) } },
+    {
+      $group: {
+        _id: '$sessionOfferId',
+        averageRating: { $avg: '$rating' },
+        ratingsCount: { $sum: 1 },
+      },
+    },
+  ])
+
+  await SessionOffer.findByIdAndUpdate(offerId, {
+    averageRating: Number(aggregate?.averageRating || 0),
+    ratingsCount: Number(aggregate?.ratingsCount || 0),
+  })
+}
+
+const autoCancelAndRefundOverdueSessions = async (query = {}) => {
+  const now = new Date()
+  const overdueSessions = await LearningSession.find({
+    ...query,
+    status: { $in: ['scheduled', 'rescheduled'] },
+    scheduledEndAt: { $lt: now },
+  })
+
+  for (const session of overdueSessions) {
+    if (session.paymentMode === 'credits' && session.paymentStatus === 'authorized') {
+      await refundLockedCredits({
+        learnerUserId: session.learnerUserId,
+        amount: session.creditAmount,
+      })
+      session.paymentStatus = 'refunded'
+    }
+
+    if (session.paymentMode === 'money' && ['authorized', 'pending', 'captured'].includes(session.paymentStatus)) {
+      session.paymentStatus = 'refunded'
+
+      if (session.paymentReferenceId) {
+        await PaymentTransaction.findByIdAndUpdate(session.paymentReferenceId, {
+          status: 'refunded',
+          notes: 'Auto-refunded because session time passed without completion',
+        })
+      }
+    }
+
+    session.status = 'cancelled'
+    await session.save()
+  }
+}
+
 const listMyLearningSessions = async (userId, { role, status }) => {
   const query = {}
 
@@ -79,6 +138,26 @@ const listMyLearningSessions = async (userId, { role, status }) => {
     query.status = status
   }
 
+  await autoCancelAndRefundOverdueSessions(query)
+
+  return LearningSession.find(query)
+    .populate('mentorUserId', 'username email')
+    .populate('learnerUserId', 'username email')
+    .populate('skillId', 'name slug category')
+    .sort({ scheduledStartAt: 1 })
+}
+
+const listMyCompletedSessionHistory = async (userId, { role }) => {
+  const query = { status: 'completed' }
+
+  if (role === 'mentor') {
+    query.mentorUserId = userId
+  } else if (role === 'learner') {
+    query.learnerUserId = userId
+  } else {
+    query.$or = [{ mentorUserId: userId }, { learnerUserId: userId }]
+  }
+
   return LearningSession.find(query)
     .populate('mentorUserId', 'username email')
     .populate('learnerUserId', 'username email')
@@ -87,6 +166,7 @@ const listMyLearningSessions = async (userId, { role, status }) => {
 }
 
 const getSessionJoinInfo = async (sessionId, userId) => {
+  await autoCancelAndRefundOverdueSessions({ _id: sessionId })
   const session = await LearningSession.findById(sessionId)
 
   if (!session) {
@@ -232,11 +312,12 @@ const completeLearningSession = async (sessionId, userId, payload = {}) => {
   }
 
   const completionStats = await getCompletionStats(session)
+  const isQualified = BYPASS_COMPLETION_DURATION_CHECK ? true : completionStats.isQualified
 
   session.completionEvaluatedAt = new Date()
   session.actualEndedAt = new Date()
 
-  if (!completionStats.isQualified) {
+  if (!isQualified) {
     session.isDurationQualified = false
     session.status = 'no_show'
 
@@ -352,6 +433,60 @@ const cancelLearningSession = async (sessionId, userId, payload = {}) => {
   await session.save()
 
   return session
+}
+
+const submitSessionReview = async (sessionId, userId, payload = {}) => {
+  const { session, isMentor, isLearner } = await getSessionIfMember(sessionId, userId)
+
+  if (session.status !== 'completed') {
+    throw new Error('Reviews can be submitted only for completed sessions')
+  }
+
+  const rating = Number(payload.rating)
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    throw new Error('rating must be between 1 and 5')
+  }
+
+  const review = String(payload.review || '').trim()
+
+  const reviewerRole = isMentor ? 'mentor' : isLearner ? 'learner' : null
+  const revieweeRole = reviewerRole === 'mentor' ? 'learner' : 'mentor'
+  const revieweeUserId = reviewerRole === 'mentor' ? session.learnerUserId : session.mentorUserId
+
+  const savedReview = await SessionReview.findOneAndUpdate(
+    {
+      learningSessionId: session._id,
+      reviewerUserId: userId,
+    },
+    {
+      learningSessionId: session._id,
+      sessionOfferId: session.sessionOfferId,
+      reviewerUserId: userId,
+      revieweeUserId,
+      reviewerRole,
+      revieweeRole,
+      rating,
+      review,
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  )
+
+  if (reviewerRole === 'mentor') {
+    session.learnerRating = rating
+    session.learnerReview = review
+  } else {
+    session.mentorRating = rating
+    session.mentorReview = review
+  }
+
+  await session.save()
+  await recalculateOfferRating(session.sessionOfferId)
+
+  return savedReview
 }
 
 const createSessionRazorpayOrder = async (sessionId, userId) => {
@@ -497,10 +632,12 @@ const verifySessionRazorpayPayment = async (sessionId, userId, payload = {}) => 
 
 module.exports = {
   listMyLearningSessions,
+  listMyCompletedSessionHistory,
   getSessionJoinInfo,
   createSessionRazorpayOrder,
   verifySessionRazorpayPayment,
   trackSessionLifecycleEvent,
   completeLearningSession,
   cancelLearningSession,
+  submitSessionReview,
 }

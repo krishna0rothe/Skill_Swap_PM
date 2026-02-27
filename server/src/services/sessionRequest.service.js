@@ -174,14 +174,14 @@ const listIncomingRequests = async (mentorUserId) => {
   return SessionRequest.find({ mentorUserId })
     .populate('sessionOfferId', 'title durationMinutes skillId acceptsCredits acceptsMoney creditPrice moneyPrice currency')
     .populate('learnerUserId', 'username email')
-    .sort({ createdAt: -1 })
+    .sort({ proposedStartAt: 1, createdAt: 1 })
 }
 
 const listOutgoingRequests = async (learnerUserId) => {
   return SessionRequest.find({ learnerUserId })
     .populate('sessionOfferId', 'title durationMinutes skillId acceptsCredits acceptsMoney creditPrice moneyPrice currency')
     .populate('mentorUserId', 'username email')
-    .sort({ createdAt: -1 })
+    .sort({ proposedStartAt: 1, createdAt: 1 })
 }
 
 const getRequestForMentor = async (mentorUserId, requestId) => {

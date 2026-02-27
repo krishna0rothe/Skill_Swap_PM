@@ -78,7 +78,7 @@ const listSessionOffers = async ({ skillId, mentorUserId, excludeMentorUserId, s
   return SessionOffer.find(query)
     .populate('mentorUserId', 'username email')
     .populate('skillId', 'name slug category')
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: 1 })
 }
 
 const getSessionOfferById = async (offerId) => {

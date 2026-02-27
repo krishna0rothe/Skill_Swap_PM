@@ -39,9 +39,15 @@ const getSkillsByCategory = async (category) => {
   return Skill.find({ category, isActive: true }).sort({ name: 1 })
 }
 
+const validateSkillExists = async (skillId) => {
+  const skill = await Skill.findOne({ _id: skillId, isActive: true }).select('_id')
+  return Boolean(skill)
+}
+
 module.exports = {
   createSkill,
   listSkills,
   getSkillById,
   getSkillsByCategory,
+  validateSkillExists,
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL } from '../config/api'
+import { API_BASE_URL, ROADMAP_API_BASE_URL } from '../config/api'
 import { clearToken, getToken } from '../utils/authStorage'
 import { fetchOnboardingStatus } from '../utils/onboardingStatus'
 import DashboardSidebar from '../components/dashboard/DashboardSidebar'
 import DiscoverSection from '../components/dashboard/DiscoverSection'
 import HomeSection from '../components/dashboard/HomeSection'
 import PlaceholderSection from '../components/dashboard/PlaceholderSection'
+import RoadmapSection from '../components/dashboard/RoadmapSection'
 import SessionsSection from '../components/dashboard/SessionsSection'
 import WalletSection from '../components/dashboard/WalletSection'
 
@@ -43,6 +44,12 @@ function DashboardPage() {
   const [completedSessions, setCompletedSessions] = useState([])
   const [wallet, setWallet] = useState(null)
   const [walletTransactions, setWalletTransactions] = useState([])
+  const [roadmaps, setRoadmaps] = useState([])
+  const [roadmapsLoading, setRoadmapsLoading] = useState(false)
+  const [roadmapGenerating, setRoadmapGenerating] = useState(false)
+  const [roadmapOfferRequestingId, setRoadmapOfferRequestingId] = useState('')
+  const [roadmapChatLoading, setRoadmapChatLoading] = useState(false)
+  const [roadmapNodeActionLoading, setRoadmapNodeActionLoading] = useState({})
 
   const [savingOffer, setSavingOffer] = useState(false)
   const [sessionMessage, setSessionMessage] = useState('')
@@ -64,6 +71,19 @@ function DashboardPage() {
     currency: 'INR',
     availabilityNote: '',
   })
+
+  const isUnauthorizedError = (error) => {
+    if (!error) return false
+    if (error.status === 401) return true
+    if (typeof error.message === 'string' && error.message.toLowerCase().includes('unauthorized')) return true
+    return false
+  }
+
+  const createHttpError = (response, fallbackMessage) => {
+    const error = new Error(fallbackMessage)
+    error.status = response?.status
+    return error
+  }
 
   const authFetch = async (url, options = {}) => {
     const token = getToken()
@@ -93,7 +113,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load session offers')
+      throw createHttpError(apiResponse, response.message || 'Failed to load session offers')
     }
 
     setDiscoverOffers(response.offers || [])
@@ -104,7 +124,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load your offers')
+      throw createHttpError(apiResponse, response.message || 'Failed to load your offers')
     }
 
     setMyOffers(response.offers || [])
@@ -115,7 +135,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load incoming requests')
+      throw createHttpError(apiResponse, response.message || 'Failed to load incoming requests')
     }
 
     setIncomingRequests(response.requests || [])
@@ -126,7 +146,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load outgoing requests')
+      throw createHttpError(apiResponse, response.message || 'Failed to load outgoing requests')
     }
 
     setOutgoingRequests(response.requests || [])
@@ -137,7 +157,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load sessions')
+      throw createHttpError(apiResponse, response.message || 'Failed to load sessions')
     }
 
     setLearningSessions(response.sessions || [])
@@ -148,7 +168,7 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load completed session history')
+      throw createHttpError(apiResponse, response.message || 'Failed to load completed session history')
     }
 
     setCompletedSessions(response.sessions || [])
@@ -159,15 +179,40 @@ function DashboardPage() {
     const response = await apiResponse.json()
 
     if (!apiResponse.ok) {
-      throw new Error(response.message || 'Failed to load wallet')
+      throw createHttpError(apiResponse, response.message || 'Failed to load wallet')
     }
 
     setWallet(response.wallet || null)
     setWalletTransactions(response.transactions || [])
   }
 
+  const fetchRoadmaps = async () => {
+    const apiResponse = await authFetch(`${ROADMAP_API_BASE_URL}/roadmaps`)
+    const response = await apiResponse.json().catch(() => ({}))
+
+    if (!apiResponse.ok) {
+      throw createHttpError(apiResponse, response.message || 'Failed to load roadmaps')
+    }
+
+    const roadmapList = Array.isArray(response.roadmaps) ? response.roadmaps : []
+    const detailedRoadmaps = await Promise.all(
+      roadmapList.slice(0, 5).map(async (roadmap) => {
+        const detailResponse = await authFetch(`${ROADMAP_API_BASE_URL}/roadmaps/${roadmap._id}`)
+        const detailData = await detailResponse.json()
+
+        if (!detailResponse.ok) {
+          throw new Error(detailData.message || 'Failed to load roadmap details')
+        }
+
+        return detailData.roadmap
+      }),
+    )
+
+    setRoadmaps(detailedRoadmaps)
+  }
+
   const refreshSessionData = async () => {
-    await Promise.all([
+    const results = await Promise.allSettled([
       fetchSkills(),
       fetchDiscoverOffers(),
       fetchMyOffers(),
@@ -177,6 +222,261 @@ function DashboardPage() {
       fetchCompletedSessions(),
       fetchWallet(),
     ])
+
+    const firstFailure = results.find((result) => result.status === 'rejected')
+    if (firstFailure?.reason) {
+      throw firstFailure.reason
+    }
+  }
+
+  const refreshRoadmapData = async () => {
+    try {
+      setRoadmapsLoading(true)
+      await fetchRoadmaps()
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        throw error
+      }
+
+      setRoadmaps([])
+    } finally {
+      setRoadmapsLoading(false)
+    }
+  }
+
+  const normalizeNodeId = (nodeId) => {
+    if (!nodeId) return ''
+    if (typeof nodeId === 'string') return nodeId
+    if (typeof nodeId === 'object' && typeof nodeId.toString === 'function') return nodeId.toString()
+    return ''
+  }
+
+  const updateNodeStatusInTree = (nodes = [], nodeId, status) => {
+    return nodes.map((node) => {
+      const currentNodeId = normalizeNodeId(node?._id || node?.id)
+      const updatedChildren = Array.isArray(node.children)
+        ? updateNodeStatusInTree(node.children, nodeId, status)
+        : []
+
+      if (currentNodeId === nodeId) {
+        return {
+          ...node,
+          status,
+          children: updatedChildren,
+        }
+      }
+
+      return {
+        ...node,
+        children: updatedChildren,
+      }
+    })
+  }
+
+  const handleGenerateRoadmap = async (naturalLanguageInput) => {
+    try {
+      setRoadmapGenerating(true)
+
+      const apiResponse = await authFetch(`${ROADMAP_API_BASE_URL}/roadmaps/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: naturalLanguageInput }),
+      })
+
+      const response = await apiResponse.json()
+
+      if (!apiResponse.ok) {
+        throw new Error(response.message || 'Failed to generate roadmap')
+      }
+
+      window.alert('Roadmap generated successfully')
+      await refreshRoadmapData()
+    } catch (error) {
+      window.alert(error.message)
+    } finally {
+      setRoadmapGenerating(false)
+    }
+  }
+
+  const handleUpdateRoadmapNodeStatus = async (roadmapId, nodeId, status) => {
+    const normalizedRoadmapId = normalizeNodeId(roadmapId)
+    const normalizedNodeId = normalizeNodeId(nodeId)
+
+    if (!normalizedRoadmapId || !normalizedNodeId) {
+      window.alert('Unable to update step status: missing roadmap or node id')
+      return
+    }
+
+    const actionKey = `${normalizedRoadmapId}:${normalizedNodeId}`
+
+    setRoadmapNodeActionLoading((prev) => ({ ...prev, [actionKey]: true }))
+    setRoadmaps((prev) =>
+      prev.map((roadmap) => {
+        if (String(roadmap._id) !== normalizedRoadmapId) {
+          return roadmap
+        }
+
+        return {
+          ...roadmap,
+          nodes: updateNodeStatusInTree(roadmap.nodes || [], normalizedNodeId, status),
+        }
+      }),
+    )
+
+    try {
+      const apiResponse = await authFetch(`${ROADMAP_API_BASE_URL}/roadmaps/${normalizedRoadmapId}/nodes/${normalizedNodeId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+
+      const response = await apiResponse.json()
+      if (!apiResponse.ok) {
+        throw new Error(response.message || 'Failed to update node status')
+      }
+
+      await refreshRoadmapData()
+    } catch (error) {
+      window.alert(error.message)
+      await refreshRoadmapData()
+    } finally {
+      setRoadmapNodeActionLoading((prev) => ({ ...prev, [actionKey]: false }))
+    }
+  }
+
+  const handleRequestSessionFromRoadmapOffer = async (offer) => {
+    if (!offer?.offerId) {
+      window.alert('Invalid offer selected')
+      return
+    }
+
+    const proposedStartAt = window.prompt('Enter preferred date/time in format YYYY-MM-DDTHH:mm (local)')
+    if (!proposedStartAt) {
+      return
+    }
+
+    const message = window.prompt('Optional message to mentor') || ''
+
+    try {
+      setRoadmapOfferRequestingId(offer.offerId)
+
+      let paymentMode = 'credits'
+      if (offer.acceptsCredits && offer.acceptsMoney) {
+        const shouldUseMoney = window.confirm('Use money payment for this session? Click Cancel to use credits.')
+        paymentMode = shouldUseMoney ? 'money' : 'credits'
+      } else if (!offer.acceptsCredits && offer.acceptsMoney) {
+        paymentMode = 'money'
+      }
+
+      let moneyPaymentPayload = {}
+      if (paymentMode === 'money') {
+        const scriptLoaded = await ensureRazorpayCheckoutLoaded()
+        if (!scriptLoaded) {
+          throw new Error('Unable to load Razorpay checkout')
+        }
+
+        const orderResponse = await authFetch(`${API_BASE_URL}/session-requests/razorpay-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionOfferId: offer.offerId }),
+        })
+
+        const orderData = await orderResponse.json()
+        if (!orderResponse.ok) {
+          throw new Error(orderData.message || 'Failed to initialize payment')
+        }
+
+        const checkoutKey = String(orderData?.keyId || FRONTEND_RAZORPAY_KEY_ID || '').trim()
+        if (!checkoutKey || checkoutKey === 'undefined' || !/^rzp_(test|live)_/.test(checkoutKey)) {
+          throw new Error('Razorpay key is not configured on server')
+        }
+
+        if (!orderData?.orderId) {
+          throw new Error('Razorpay order could not be created')
+        }
+
+        const paymentResult = await new Promise((resolve, reject) => {
+          const paymentWindow = new window.Razorpay({
+            key: checkoutKey,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: orderData.name,
+            description: orderData.description,
+            order_id: orderData.orderId,
+            redirect: false,
+            prefill: {
+              name: user?.username || '',
+              email: user?.email || '',
+              contact: user?.mobile || '',
+            },
+            notes: orderData.notes || {},
+            handler: (result) => resolve(result),
+            modal: {
+              ondismiss: () => reject(new Error('Payment cancelled by user')),
+            },
+            theme: {
+              color: '#4f46e5',
+            },
+          })
+
+          paymentWindow.open()
+        })
+
+        moneyPaymentPayload = paymentResult
+      }
+
+      const apiResponse = await authFetch(`${API_BASE_URL}/session-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionOfferId: offer.offerId,
+          proposedStartAt,
+          message,
+          paymentMode,
+          ...moneyPaymentPayload,
+        }),
+      })
+
+      const response = await apiResponse.json()
+
+      if (!apiResponse.ok) {
+        throw new Error(response.message || 'Failed to create session request')
+      }
+
+      window.alert('Session request sent from roadmap')
+      await refreshSessionData()
+    } catch (error) {
+      window.alert(error.message)
+    } finally {
+      setRoadmapOfferRequestingId('')
+    }
+  }
+
+  const handleRoadmapChatMessage = async (message) => {
+    try {
+      setRoadmapChatLoading(true)
+
+      const apiResponse = await authFetch(`${ROADMAP_API_BASE_URL}/roadmaps/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+
+      const response = await apiResponse.json().catch(() => ({}))
+      if (!apiResponse.ok) {
+        throw new Error(response.message || 'Failed to get roadmap assistant response')
+      }
+
+      return {
+        reply: response.reply || 'I can help you generate a roadmap from your goal and timeline.',
+        suggestedPrompt: response.suggestedPrompt || '',
+      }
+    } catch (error) {
+      window.alert(error.message)
+      return null
+    } finally {
+      setRoadmapChatLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -205,14 +505,18 @@ function DashboardPage() {
         const response = await apiResponse.json()
 
         if (!apiResponse.ok) {
-          throw new Error(response.message || 'Failed to fetch user')
+          throw createHttpError(apiResponse, response.message || 'Failed to fetch user')
         }
 
         setUser(response.user)
         await refreshSessionData()
-      } catch (_error) {
-        clearToken()
-        navigate('/login', { replace: true })
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          clearToken()
+          navigate('/login', { replace: true })
+        } else {
+          console.error('Dashboard bootstrap failed', error)
+        }
       } finally {
         setLoading(false)
       }
@@ -220,6 +524,19 @@ function DashboardPage() {
 
     loadUser()
   }, [navigate])
+
+  useEffect(() => {
+    if (!user || activeSection !== 'roadmap') {
+      return
+    }
+
+    refreshRoadmapData().catch((error) => {
+      if (isUnauthorizedError(error)) {
+        clearToken()
+        navigate('/login', { replace: true })
+      }
+    })
+  }, [activeSection, user, navigate])
 
   const handleLogout = () => {
     clearToken()
@@ -605,6 +922,24 @@ function DashboardPage() {
 
     if (activeSection === 'wallet') {
       return <WalletSection wallet={wallet} transactions={walletTransactions} mode={mode} />
+    }
+
+    if (activeSection === 'roadmap') {
+      return (
+        <RoadmapSection
+          roadmaps={roadmaps}
+          loading={roadmapsLoading}
+          generating={roadmapGenerating}
+          onGenerateRoadmap={handleGenerateRoadmap}
+          onRefreshRoadmaps={refreshRoadmapData}
+          onUpdateNodeStatus={handleUpdateRoadmapNodeStatus}
+          onRequestSession={handleRequestSessionFromRoadmapOffer}
+          requestingOfferId={roadmapOfferRequestingId}
+          onChatMessage={handleRoadmapChatMessage}
+          chatLoading={roadmapChatLoading}
+          nodeActionLoading={roadmapNodeActionLoading}
+        />
+      )
     }
 
     return <PlaceholderSection title={activeSection} />

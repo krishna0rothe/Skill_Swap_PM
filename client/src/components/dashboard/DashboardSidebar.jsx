@@ -1,7 +1,7 @@
 import SkillSwapLogo from '../common/SkillSwapLogo'
 
 function DashboardSidebar({ activeSection, onChangeSection, user, onLogout }) {
-  const sidebarItems = ['home', 'sessions', 'discover', 'wallet']
+  const sidebarItems = ['home', 'sessions', 'discover', 'wallet', 'roadmap']
 
   return (
     <aside className="border-r border-slate-200/70 bg-white/90 p-5">

@@ -3,6 +3,7 @@ const {
   create,
   list,
   mine,
+  bySkills,
   getById,
   updateMine,
   deactivateMine,
@@ -14,6 +15,7 @@ const router = express.Router()
 router.use(protect)
 router.get('/', list)
 router.get('/mine', mine)
+router.post('/by-skills', bySkills)
 router.get('/:offerId', getById)
 router.post('/', create)
 router.patch('/:offerId', updateMine)

@@ -1,6 +1,7 @@
 const {
   createSessionOffer,
   listSessionOffers,
+  listSessionOffersBySkills,
   getSessionOfferById,
   updateMySessionOffer,
   deactivateMySessionOffer,
@@ -44,6 +45,22 @@ const mine = async (req, res) => {
   }
 }
 
+const bySkills = async (req, res) => {
+  try {
+    const { skillIds = [], includeInactive } = req.body || {}
+
+    const offers = await listSessionOffersBySkills({
+      skillIds,
+      excludeMentorUserId: req.user.userId,
+      includeInactive: includeInactive === true,
+    })
+
+    return res.status(200).json({ offers })
+  } catch (error) {
+    return res.status(400).json({ message: error.message })
+  }
+}
+
 const getById = async (req, res) => {
   try {
     const offer = await getSessionOfferById(req.params.offerId)
@@ -75,6 +92,7 @@ module.exports = {
   create,
   list,
   mine,
+  bySkills,
   getById,
   updateMine,
   deactivateMine,

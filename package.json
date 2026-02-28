@@ -5,8 +5,10 @@
   "type": "commonjs",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:all": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\" \"npm run dev --prefix roadmap-service\"",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
+    "dev:roadmap": "npm run dev --prefix roadmap-service",
     "start": "npm run start --prefix server"
   },
   "devDependencies": {

@@ -81,6 +81,34 @@ const listSessionOffers = async ({ skillId, mentorUserId, excludeMentorUserId, s
     .sort({ createdAt: 1 })
 }
 
+const listSessionOffersBySkills = async ({ skillIds = [], excludeMentorUserId, includeInactive = false }) => {
+  if (!Array.isArray(skillIds) || skillIds.length === 0) {
+    throw new Error('skillIds is required and must be a non-empty array')
+  }
+
+  const uniqueSkillIds = [...new Set(skillIds.map((id) => String(id).trim()).filter(Boolean))]
+
+  uniqueSkillIds.forEach((skillId) => assertValidObjectId(skillId, 'skillId'))
+
+  const query = {
+    skillId: { $in: uniqueSkillIds },
+  }
+
+  if (!includeInactive) {
+    query.isActive = true
+  }
+
+  if (excludeMentorUserId) {
+    assertValidObjectId(excludeMentorUserId, 'excludeMentorUserId')
+    query.mentorUserId = { $ne: excludeMentorUserId }
+  }
+
+  return SessionOffer.find(query)
+    .populate('mentorUserId', 'username email')
+    .populate('skillId', 'name slug category')
+    .sort({ averageRating: -1, ratingsCount: -1, createdAt: -1 })
+}
+
 const getSessionOfferById = async (offerId) => {
   assertValidObjectId(offerId, 'offerId')
 
@@ -141,6 +169,7 @@ const deactivateMySessionOffer = async (mentorUserId, offerId) => {
 module.exports = {
   createSessionOffer,
   listSessionOffers,
+  listSessionOffersBySkills,
   getSessionOfferById,
   updateMySessionOffer,
   deactivateMySessionOffer,

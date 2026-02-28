@@ -469,7 +469,29 @@ function DashboardPage() {
       onReject: mode === 'teach' ? handleRejectRequest : null,
     }))
 
-  const upcomingSessions = learningSessions
+  const requestById = new Map(
+    [...incomingRequests, ...outgoingRequests].map((request) => [String(request._id), request])
+  )
+
+  const sessionsWithMentorMessage = learningSessions.map((session) => {
+    const linkedRequest = requestById.get(String(session.sessionRequestId || ''))
+
+    return {
+      ...session,
+      mentorMessage: linkedRequest?.mentorResponseMessage || '',
+    }
+  })
+
+  const completedSessionsWithMentorMessage = completedSessions.map((session) => {
+    const linkedRequest = requestById.get(String(session.sessionRequestId || ''))
+
+    return {
+      ...session,
+      mentorMessage: linkedRequest?.mentorResponseMessage || '',
+    }
+  })
+
+  const upcomingSessions = sessionsWithMentorMessage
     .filter((session) => ['scheduled', 'rescheduled'].includes(session.status))
     .sort((a, b) => new Date(a.scheduledStartAt) - new Date(b.scheduledStartAt))
     .map((session) => ({
@@ -558,8 +580,8 @@ function DashboardPage() {
           onRejectRequest={handleRejectRequest}
           onRescheduleRequest={handleRescheduleRequest}
           actionLoading={actionLoading}
-          learningSessions={learningSessions}
-          completedSessions={completedSessions}
+          learningSessions={sessionsWithMentorMessage}
+          completedSessions={completedSessionsWithMentorMessage}
           onJoinSession={(session) => navigate(`/call/${session._id}`)}
           onCompleteSession={handleCompleteSession}
           onCancelSession={handleCancelSession}

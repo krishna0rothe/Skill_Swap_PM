@@ -1,4 +1,5 @@
 const Wallet = require('../models/Wallet')
+const PaymentTransaction = require('../models/PaymentTransaction')
 
 const STARTING_CREDIT_BALANCE = 60
 
@@ -91,6 +92,19 @@ const creditRealMoneyToMentor = async ({ mentorUserId, amount }) => {
   return mentorWallet
 }
 
+const listWalletTransactionsForUser = async (userId, { limit = 20 } = {}) => {
+  const normalizedLimit = Math.max(1, Math.min(Number(limit) || 20, 100))
+
+  return PaymentTransaction.find({
+    $or: [{ learnerUserId: userId }, { mentorUserId: userId }],
+  })
+    .populate('learningSessionId', 'title scheduledStartAt')
+    .populate('learnerUserId', 'username')
+    .populate('mentorUserId', 'username')
+    .sort({ createdAt: -1 })
+    .limit(normalizedLimit)
+}
+
 module.exports = {
   STARTING_CREDIT_BALANCE,
   createWalletForUser,
@@ -100,4 +114,5 @@ module.exports = {
   settleLockedCreditsToMentor,
   refundLockedCredits,
   creditRealMoneyToMentor,
+  listWalletTransactionsForUser,
 }

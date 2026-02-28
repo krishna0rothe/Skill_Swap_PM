@@ -42,6 +42,7 @@ function DashboardPage() {
   const [learningSessions, setLearningSessions] = useState([])
   const [completedSessions, setCompletedSessions] = useState([])
   const [wallet, setWallet] = useState(null)
+  const [walletTransactions, setWalletTransactions] = useState([])
 
   const [savingOffer, setSavingOffer] = useState(false)
   const [sessionMessage, setSessionMessage] = useState('')
@@ -162,6 +163,7 @@ function DashboardPage() {
     }
 
     setWallet(response.wallet || null)
+    setWalletTransactions(response.transactions || [])
   }
 
   const refreshSessionData = async () => {
@@ -602,7 +604,7 @@ function DashboardPage() {
     }
 
     if (activeSection === 'wallet') {
-      return <WalletSection wallet={wallet} />
+      return <WalletSection wallet={wallet} transactions={walletTransactions} mode={mode} />
     }
 
     return <PlaceholderSection title={activeSection} />
